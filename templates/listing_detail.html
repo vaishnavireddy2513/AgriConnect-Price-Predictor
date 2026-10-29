@@ -18,6 +18,26 @@
                 Listed by {{ listing.farmer.name }} · Posted {{ listing.date_posted.strftime('%d %b %Y') }}
             </p>
 
+            {% if insight %}
+                <div class="panel-alt p-3 mb-4">
+                    <p class="fw-semibold mb-1">📈 Market check</p>
+                    <p class="mb-1" style="font-size:0.92rem;">
+                        Recent average market price for {{ insight.crop }}
+                        ({{ insight.region }}): <strong>₹{{ "%.0f"|format(insight.market_price) }} / quintal</strong>.
+                        This listing is
+                        {% if insight.diff_pct > 3 %}<strong>{{ insight.diff_pct }}% above</strong>
+                        {% elif insight.diff_pct < -3 %}<strong>{{ -insight.diff_pct }}% below</strong>
+                        {% else %}<strong>close to</strong>{% endif %}
+                        that average.
+                        {% if insight.trend == 'up' %}Prices are expected to rise in the next few weeks.
+                        {% elif insight.trend == 'down' %}Prices are expected to fall in the next few weeks.
+                        {% else %}Prices are expected to stay steady.{% endif %}
+                    </p>
+                    <a href="{{ url_for('price_predictor') }}" class="link-agri" style="font-size:0.9rem;">Open Price Predictor →</a>
+                    {% if insight.is_demo %}<p class="text-muted-agri mb-0 mt-1" style="font-size:0.8rem;">Demo data, not real market rates.</p>{% endif %}
+                </div>
+            {% endif %}
+
             {% if session.get('user_role') == 'buyer' %}
                 {% if already_contacted %}
                     <div class="panel-alt p-3">

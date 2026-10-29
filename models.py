@@ -4,6 +4,7 @@ User Module:         User table
 Marketplace Module:  Listing table, ContactRequest table
 Advisory Module:      AdvisoryRule table
 Subsidy Module:        SubsidyRule table
+Price Module:          PriceHistory table
 """
 
 from flask_sqlalchemy import SQLAlchemy
@@ -95,3 +96,19 @@ class SubsidyRule(db.Model):
 
     def __repr__(self):
         return f"<SubsidyRule {self.scheme_name} ({self.region}/{self.crop}/{self.land_category})>"
+
+
+class PriceHistory(db.Model):
+    """
+    One weekly average mandi price for a (region, crop) pair, in Rs per quintal.
+    Feeds the Price Predictor module. source = 'demo' (synthetic) or 'agmarknet' (real).
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    week_end = db.Column(db.Date, nullable=False, index=True)   # Sunday that ends the week
+    region = db.Column(db.String(50), nullable=False, index=True)
+    crop = db.Column(db.String(50), nullable=False, index=True)
+    modal_price = db.Column(db.Float, nullable=False)           # Rs / quintal
+    source = db.Column(db.String(20), nullable=False, default='agmarknet')
+
+    def __repr__(self):
+        return f"<PriceHistory {self.crop}/{self.region} {self.week_end} Rs{self.modal_price}>"

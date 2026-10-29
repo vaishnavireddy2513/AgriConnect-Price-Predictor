@@ -4,14 +4,18 @@ User Module:        Signup, Login, Logout, Dashboard, Edit Profile, Change Passw
 Marketplace Module: Add/Edit/Delete Listing, Browse/Search Listings, Contact Requests
 Advisory Module:    Rule-based crop/soil/symptom advisory
 Subsidy Module:     Rule-based region/crop/land-size scheme eligibility
+Price Module:       ML price forecast (next 1-4 weeks) per crop and region
 """
 
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Listing, ContactRequest, AdvisoryRule, SubsidyRule
+from models import db, User, Listing, ContactRequest, AdvisoryRule, SubsidyRule, PriceHistory
 from advisory_data import CROPS, SOILS, SYMPTOMS, BASE_RULES, SOIL_OVERRIDES
 from subsidy_data import REGIONS, LAND_CATEGORIES, SCHEME_RULES
+from price_engine import (PRICE_CROPS, PRICE_REGIONS, ALL_REGIONS, MAX_HORIZON,
+                          seed_price_history, ensure_price_model,
+                          get_forecast, get_listing_insight)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'change-this-secret-key-later'
@@ -63,6 +67,8 @@ with app.app_context():
     db.create_all()
     seed_advisory_rules()
     seed_subsidy_rules()
+    seed_price_history()      # demo data on first run; replace with real data via manage_prices.py
+    ensure_price_model()      # trains the price model on first run
 
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
@@ -298,7 +304,9 @@ def listing_detail(listing_id):
             listing_id=listing.id, buyer_id=session['user_id']
         ).first() is not None
 
-    return render_template('listing_detail.html', listing=listing, already_contacted=already_contacted)
+    insight = get_listing_insight(listing)
+    return render_template('listing_detail.html', listing=listing,
+                           already_contacted=already_contacted, insight=insight)
 
 
 @app.route('/marketplace/add', methods=['GET', 'POST'])
@@ -608,6 +616,41 @@ def subsidy():
 
     return render_template('subsidy.html', regions=REGIONS, crops=CROPS,
                             land_categories=LAND_CATEGORIES, selected=selected, results=results)
+
+
+# ============================================================
+# PRICE PREDICTOR MODULE
+# ============================================================
+
+@app.route('/price-predictor', methods=['GET', 'POST'])
+def price_predictor():
+    if not login_required():
+        flash("Please log in to continue.", "error")
+        return redirect(url_for('login'))
+
+    regions = [ALL_REGIONS] + PRICE_REGIONS
+    result = None
+    selected = {'crop': PRICE_CROPS[0], 'region': ALL_REGIONS, 'weeks': MAX_HORIZON}
+
+    if request.method == 'POST':
+        crop = request.form.get('crop', '')
+        region = request.form.get('region', '')
+        try:
+            weeks = int(request.form.get('weeks', MAX_HORIZON))
+        except ValueError:
+            weeks = MAX_HORIZON
+        selected = {'crop': crop, 'region': region, 'weeks': weeks}
+
+        if crop not in PRICE_CROPS or region not in regions or not 1 <= weeks <= MAX_HORIZON:
+            flash("Please select a valid crop, region, and forecast length.", "error")
+        else:
+            result = get_forecast(crop, region, weeks)
+            if result is None:
+                flash("Not enough price data for this combination yet. Please try another.", "error")
+
+    return render_template('price_predictor.html', crops=PRICE_CROPS, regions=regions,
+                           week_options=list(range(1, MAX_HORIZON + 1)),
+                           selected=selected, result=result)
 
 
 if __name__ == '__main__':

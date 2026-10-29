@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Price Predictor — AGRICONNECT{% endblock %}
+{% block content %}
+
+<div class="card-agri p-4 p-md-5 mb-4">
+    <h2 class="mb-1" style="font-size:1.6rem;">📈 Crop Price Predictor</h2>
+    <p class="text-muted-agri mb-4">
+        Choose a crop and region to see the expected market price (₹ per quintal) for the coming weeks.
+    </p>
+
+    <form method="POST" action="{{ url_for('price_predictor') }}">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="crop" class="form-label fw-semibold">Crop</label>
+                <select class="form-select" id="crop" name="crop" required>
+                    {% for c in crops %}
+                        <option value="{{ c }}" {% if selected.crop == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="region" class="form-label fw-semibold">Region</label>
+                <select class="form-select" id="region" name="region" required>
+                    {% for r in regions %}
+                        <option value="{{ r }}" {% if selected.region == r %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="weeks" class="form-label fw-semibold">Weeks ahead</label>
+                <select class="form-select" id="weeks" name="weeks">
+                    {% for w in week_options %}
+                        <option value="{{ w }}" {% if selected.weeks == w %}selected{% endif %}>{{ w }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-agri-primary w-100">Predict</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+{% if result %}
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card-agri p-4 mb-4">
+            <div class="badge-agri mb-2">{{ result.region }}</div>
+            <h3 style="font-size:1.3rem;" class="mb-1">{{ result.crop }}</h3>
+            <p class="text-muted-agri mb-1" style="font-size:0.9rem;">Latest weekly average ({{ result.current_week }})</p>
+            <p class="price-tag mb-3">₹{{ "%.0f"|format(result.current_price) }} / quintal</p>
+
+            {% if result.trend == 'up' %}
+                <span class="badge bg-success mb-3">▲ Prices likely to rise</span>
+            {% elif result.trend == 'down' %}
+                <span class="badge bg-danger mb-3">▼ Prices likely to fall</span>
+            {% else %}
+                <span class="badge bg-secondary mb-3">● Prices look steady</span>
+            {% endif %}
+
+            <p class="mb-0">{{ result.advice }}</p>
+        </div>
+
+        <div class="card-agri p-4">
+            <h3 style="font-size:1.05rem;" class="mb-3">Forecast</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr><th>Week ending</th><th>Expected</th><th>Range</th><th>Change</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for r in result.rows %}
+                        <tr>
+                            <td>{{ r.week_end }}</td>
+                            <td class="fw-semibold">₹{{ "%.0f"|format(r.price) }}</td>
+                            <td class="text-muted-agri">{{ "%.0f"|format(r.low) }}–{{ "%.0f"|format(r.high) }}</td>
+                            <td class="{{ 'text-success' if r.change_pct > 0 else 'text-danger' if r.change_pct < 0 else '' }}">
+                                {{ "%+.1f"|format(r.change_pct) }}%
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted-agri mt-2 mb-0" style="font-size:0.8rem;">
+                Range = 80% likely to fall within these values.
+            </p>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card-agri p-4 mb-4">
+            <canvas id="priceChart" height="130"></canvas>
+        </div>
+
+        {% if result.metrics and result.metrics.mape_model %}
+        <div class="panel-alt p-4 mb-4">
+            <h3 style="font-size:1.05rem;" class="mb-2">How reliable is this?</h3>
+            <p class="mb-2" style="font-size:0.92rem;">
+                Tested on the last {{ result.metrics.test_weeks }} weeks the model had never seen.
+                Average error of the forecast (lower is better), compared with simply assuming
+                "next week's price = this week's price":
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0" style="font-size:0.9rem;">
+                    <thead><tr><th>Weeks ahead</th><th>Our model</th><th>Simple guess</th></tr></thead>
+                    <tbody>
+                    {% for k, v in result.metrics.mape_model.items() %}
+                        <tr><td>{{ k }}</td><td>{{ v }}%</td><td>{{ result.metrics.mape_naive[k] }}%</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="panel-alt p-3">
+            <p class="mb-0 text-muted-agri" style="font-size:0.88rem;">
+                <strong>Please note:</strong> forecasts are estimates based on past price patterns, not
+                guarantees. Weather, government policy and sudden supply changes can move prices.
+                Check your local mandi rate before deciding.
+                {% if result.is_demo %}
+                    <br><strong>Demo data:</strong> prices shown here are simulated for testing and are
+                    not real market rates.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const histLabels = {{ result.hist_labels|tojson }};
+    const histVals   = {{ result.hist_values|tojson }};
+    const fcLabels   = {{ result.fc_labels|tojson }};
+    const fcVals     = {{ result.fc_values|tojson }};
+    const fcLow      = {{ result.fc_low|tojson }};
+    const fcHigh     = {{ result.fc_high|tojson }};
+
+    const labels = histLabels.concat(fcLabels);
+    const pad = histLabels.length - 1;            // blank slots before the forecast starts
+    const lastActual = histVals[histVals.length - 1];
+
+    // forecast line starts from the last actual point so the two lines connect
+    const blank = Array(pad).fill(null);
+    const fcLine = blank.concat([lastActual], fcVals);
+    const lowLine = blank.concat([lastActual], fcLow);
+    const highLine = blank.concat([lastActual], fcHigh);
+
+    new Chart(document.getElementById('priceChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Past prices', data: histVals.concat(Array(fcLabels.length).fill(null)),
+                  borderColor: '#2F5233', backgroundColor: '#2F5233', tension: 0.25, pointRadius: 2 },
+                { label: 'Likely low', data: lowLine, borderColor: 'transparent',
+                  pointRadius: 0, fill: false },
+                { label: 'Likely high', data: highLine, borderColor: 'transparent',
+                  pointRadius: 0, backgroundColor: 'rgba(201,151,59,0.22)', fill: '-1' },
+                { label: 'Forecast', data: fcLine, borderColor: '#C9973B', backgroundColor: '#C9973B',
+                  borderDash: [6, 4], tension: 0.25, pointRadius: 3 }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                title: { display: true, text: '{{ result.crop }} — {{ result.region }} (₹ per quintal)' },
+                legend: { labels: { filter: function (item) {
+                    return item.text !== 'Likely low' && item.text !== 'Likely high'; } } }
+            },
+            scales: { y: { ticks: { callback: function (v) { return '₹' + v; } } } }
+        }
+    });
+})();
+</script>
+{% endif %}
+
+{% endblock %}

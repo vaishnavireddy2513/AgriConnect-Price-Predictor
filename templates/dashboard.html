@@ -10,7 +10,7 @@
 </div>
 
 <div class="row g-4">
-    <div class="col-md-4">
+    <div class="col-md-6 col-lg-3">
         <div class="card-agri p-4 h-100">
             <h3 style="font-size:1.1rem;">🌾 Marketplace</h3>
             {% if role == 'farmer' %}
@@ -23,17 +23,24 @@
             {% endif %}
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-6 col-lg-3">
         <div class="card-agri p-4 h-100">
             <h3 style="font-size:1.1rem;">🌱 Crop Advisory</h3>
             <p class="text-muted-agri">Get crop, soil, and symptom-based guidance.</p>
             <a href="{{ url_for('advisory') }}" class="btn btn-agri-primary btn-sm mb-2">Get Advisory</a>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-6 col-lg-3">
         <div class="card-agri p-4 h-100">
             <h3 style="font-size:1.1rem;">🏛️ Subsidy Finder</h3>
             <a href="{{ url_for('subsidy') }}" class="btn btn-agri-primary btn-sm mb-2">Check Eligibility</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card-agri p-4 h-100">
+            <h3 style="font-size:1.1rem;">📈 Price Predictor</h3>
+            <p class="text-muted-agri">See expected crop prices for the next few weeks.</p>
+            <a href="{{ url_for('price_predictor') }}" class="btn btn-agri-primary btn-sm mb-2">Forecast Prices</a>
         </div>
     </div>
 </div>

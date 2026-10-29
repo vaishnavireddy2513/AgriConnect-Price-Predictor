@@ -23,6 +23,7 @@
                     {% if session.get('user_id') %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('marketplace') }}">Marketplace</a></li>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('advisory') }}">Crop Advisory</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('price_predictor') }}">Price Predictor</a></li>
                         {% if session.get('user_role') == 'farmer' %}
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('my_listings') }}">My Listings</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('received_interests') }}">Interest Requests</a></li>
